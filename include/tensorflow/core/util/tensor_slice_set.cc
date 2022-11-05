@@ -54,7 +54,7 @@ Status TensorSliceSet::Register(const TensorSlice& slice, const string& tag) {
 
   TensorSliceSet::SliceInfo info = {slice, tag, result_shape.num_elements()};
   slices_.insert(std::make_pair(str, info));
-  return Status::OK();
+  return OkStatus();
 }
 
 bool TensorSliceSet::QueryMeta(
@@ -82,9 +82,9 @@ bool TensorSliceSet::QueryMeta(
       LOG(WARNING) << s;
       return false;
     }
-    int64 total_size = target_shape.num_elements();
+    int64_t total_size = target_shape.num_elements();
 
-    int64 overlap_size = 0;
+    int64_t overlap_size = 0;
     TensorSlice intersection;
     TensorShape inter_shape;
     for (const auto& x : slices_) {

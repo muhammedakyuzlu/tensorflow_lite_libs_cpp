@@ -67,14 +67,14 @@ require writing JNI wrappers to move data between Java and C++ layers.
 
 See below for details about using [C++](#load-and-run-a-model-in-c) and
 [Java](#load-and-run-a-model-in-java), or follow the
-[Android quickstart](android.md) for a tutorial and example code.
+[Android quickstart](../android) for a tutorial and example code.
 
 #### TensorFlow Lite Android wrapper code generator
 
 Note: TensorFlow Lite wrapper code generator is in experimental (beta) phase and
 it currently only supports Android.
 
-For TensorFlow Lite model enhanced with [metadata](../convert/metadata.md),
+For TensorFlow Lite model enhanced with [metadata](../inference_with_metadata/overview),
 developers can use the TensorFlow Lite Android wrapper code generator to create
 platform specific wrapper code. The wrapper code removes the need to interact
 directly with `ByteBuffer` on Android. Instead, developers can interact with the
@@ -85,9 +85,9 @@ information, please refer to the
 ### iOS Platform
 
 On iOS, TensorFlow Lite is available with native iOS libraries written in
-[Swift](https://www.tensorflow.org/code/tensorflow/lite/experimental/swift)
+[Swift](https://www.tensorflow.org/code/tensorflow/lite/swift)
 and
-[Objective-C](https://www.tensorflow.org/code/tensorflow/lite/experimental/objc).
+[Objective-C](https://www.tensorflow.org/code/tensorflow/lite/objc).
 You can also use
 [C API](https://www.tensorflow.org/code/tensorflow/lite/c/c_api.h)
 directly in Objective-C codes.
@@ -99,7 +99,7 @@ See below for details about using [Swift](#load-and-run-a-model-in-swift),
 
 ### Linux Platform
 
-On Linux platforms (including [Raspberry Pi](build_rpi.md)), you can run
+On Linux platforms (including [Raspberry Pi](build_arm)), you can run
 inferences using TensorFlow Lite APIs available in
 [C++](#load-and-run-a-model-in-c) and [Python](#load-and-run-a-model-in-python),
 as shown in the following sections.
@@ -145,8 +145,34 @@ In both cases, you must provide a valid TensorFlow Lite model or the API throws
 `Interpreter`, it must remain unchanged for the whole lifetime of the
 `Interpreter`.
 
-To then run an inference with the model, simply call `Interpreter.run()`. For
-example:
+The preferred way to run inference on a model is to use signatures -
+Available for models converted starting Tensorflow 2.5
+
+```Java
+try (Interpreter interpreter = new Interpreter(file_of_tensorflowlite_model)) {
+  Map<String, Object> inputs = new HashMap<>();
+  inputs.put("input_1", input1);
+  inputs.put("input_2", input2);
+  Map<String, Object> outputs = new HashMap<>();
+  outputs.put("output_1", output1);
+  interpreter.runSignature(inputs, outputs, "mySignature");
+}
+```
+
+The `runSignature` method takes three arguments:
+
+-   **Inputs** : map for inputs from input name in the signature to an input
+    object.
+
+-   **Outputs** : map for output mapping from output name in signature to output
+    data.
+
+-   **Signature Name** [optional]: Signature name (Can be left empty if the
+    model has single signature).
+
+Another way to run an inference when the model doesn't
+have a defined signatures.
+Simply call `Interpreter.run()`. For example:
 
 ```java
 try (Interpreter interpreter = new Interpreter(file_of_a_tensorflowlite_model)) {
@@ -166,7 +192,7 @@ In this case, each entry in `inputs` corresponds to an input tensor and
 output data.
 
 In both cases, the tensor indices should correspond to the values you gave to
-the [TensorFlow Lite Converter](../convert/) when you created the model. Be
+the [TensorFlow Lite Converter](../models/convert/) when you created the model. Be
 aware that the order of tensors in `input` must match the order given to the
 TensorFlow Lite Converter.
 
@@ -238,7 +264,7 @@ Java inference API, but planned extensions will make this possible.
 *Platform: iOS*
 
 The
-[Swift API](https://www.tensorflow.org/code/tensorflow/lite/experimental/swift)
+[Swift API](https://www.tensorflow.org/code/tensorflow/lite/swift)
 is available in `TensorFlowLiteSwift` Pod from Cocoapods.
 
 First, you need to import `TensorFlowLite` module.
@@ -292,7 +318,7 @@ do {
 *Platform: iOS*
 
 The
-[Objective-C API](https://www.tensorflow.org/code/tensorflow/lite/experimental/objc)
+[Objective-C API](https://www.tensorflow.org/code/tensorflow/lite/objc)
 is available in `TensorFlowLiteObjC` Pod from Cocoapods.
 
 First, you need to import `TensorFlowLite` module.
@@ -318,8 +344,12 @@ if (error != nil) { /* Error handling... */ }
 NSMutableData *inputData;  // Should be initialized
 // input data preparation...
 
+// Get the input `TFLTensor`
+TFLTensor *inputTensor = [interpreter inputTensorAtIndex:0 error:&error];
+if (error != nil) { /* Error handling... */ }
+
 // Copy the input data to the input `TFLTensor`.
-[interpreter copyData:inputData toInputTensorAtIndex:0 error:&error];
+[inputTensor copyData:inputData error:&error];
 if (error != nil) { /* Error handling... */ }
 
 // Run inference by invoking the `TFLInterpreter`.
@@ -331,7 +361,7 @@ TFLTensor *outputTensor = [interpreter outputTensorAtIndex:0 error:&error];
 if (error != nil) { /* Error handling... */ }
 
 // Copy output to `NSData` to process the inference results.
-NSData *outputData = [outputTensor dataWithError:&amp;error];
+NSData *outputData = [outputTensor dataWithError:&error];
 if (error != nil) { /* Error handling... */ }
 ```
 
@@ -464,6 +494,57 @@ to load a model and run an inference.
 The following example shows how to use the Python interpreter to load a
 `.tflite` file and run inference with random input data:
 
+This example is recommended if you're converting from SavedModel with a defined
+SignatureDef.
+Available starting from TensorFlow 2.5
+
+```python
+class TestModel(tf.Module):
+  def __init__(self):
+    super(TestModel, self).__init__()
+
+  @tf.function(input_signature=[tf.TensorSpec(shape=[1, 10], dtype=tf.float32)])
+  def add(self, x):
+    '''
+    Simple method that accepts single input 'x' and returns 'x' + 4.
+    '''
+    # Name the output 'result' for convenience.
+    return {'result' : x + 4}
+
+
+SAVED_MODEL_PATH = 'content/saved_models/test_variable'
+TFLITE_FILE_PATH = 'content/test_variable.tflite'
+
+# Save the model
+module = TestModel()
+# You can omit the signatures argument and a default signature name will be
+# created with name 'serving_default'.
+tf.saved_model.save(
+    module, SAVED_MODEL_PATH,
+    signatures={'my_signature':module.add.get_concrete_function()})
+
+# Convert the model using TFLiteConverter
+converter = tf.lite.TFLiteConverter.from_saved_model(SAVED_MODEL_PATH)
+tflite_model = converter.convert()
+with open(TFLITE_FILE_PATH, 'wb') as f:
+  f.write(tflite_model)
+
+# Load the TFLite model in TFLite Interpreter
+interpreter = tf.lite.Interpreter(TFLITE_FILE_PATH)
+# There is only 1 signature defined in the model,
+# so it will return it by default.
+# If there are multiple signatures then we can pass the name.
+my_signature = interpreter.get_signature_runner()
+
+# my_signature is callable with input as arguments.
+output = my_signature(x=tf.constant([1.0], shape=(1,10), dtype=tf.float32))
+# 'output' is dictionary with all outputs from the inference.
+# In this case we have single output 'result'.
+print(output['result'])
+```
+
+Another example if the model doesn't have SignatureDefs defined.
+
 ```python
 import numpy as np
 import tensorflow as tf
@@ -491,7 +572,7 @@ print(output_data)
 
 As an alternative to loading the model as a pre-converted `.tflite` file, you
 can combine your code with the
-[TensorFlow Lite Converter Python API](https://www.tensorflow.org/lite/convert/python_api)
+[TensorFlow Lite Converter Python API](https://www.tensorflow.org/lite/api_docs/python/tf/lite/TFLiteConverter)
 (`tf.lite.TFLiteConverter`), allowing you to convert your TensorFlow model into
 the TensorFlow Lite format and then run inference:
 

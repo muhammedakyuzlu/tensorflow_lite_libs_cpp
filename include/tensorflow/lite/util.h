@@ -21,6 +21,9 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_UTIL_H_
 #define TENSORFLOW_LITE_UTIL_H_
 
+#include <stddef.h>
+
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,8 +54,8 @@ TfLiteIntArray* ConvertVectorToTfLiteIntArray(const std::vector<int>& input);
 
 // Converts an array (of the given size) to a `TfLiteIntArray`. The caller
 // takes ownership of the returned pointer, and must make sure 'dims' has at
-// least 'rank' elements.
-TfLiteIntArray* ConvertArrayToTfLiteIntArray(const int rank, const int* dims);
+// least 'ndims' elements.
+TfLiteIntArray* ConvertArrayToTfLiteIntArray(const int ndims, const int* dims);
 
 // Checks whether a `TfLiteIntArray` and an int array have matching elements.
 // The caller must guarantee that 'b' has at least 'b_size' elements.
@@ -88,6 +91,26 @@ bool IsUnresolvedCustomOp(const TfLiteRegistration& registration);
 
 // Returns a descriptive name with the given op TfLiteRegistration.
 std::string GetOpNameByRegistration(const TfLiteRegistration& registration);
+
+// The prefix of a validation subgraph name.
+// WARNING: This is an experimental API and subject to change.
+constexpr char kValidationSubgraphNamePrefix[] = "VALIDATION:";
+
+// Checks whether the prefix of the subgraph name indicates the subgraph is a
+// validation subgraph.
+bool IsValidationSubgraph(const char* name);
+
+// Multiply two sizes and return true if overflow occurred;
+// This is based off tensorflow/overflow.h but is simpler as we already
+// have unsigned numbers. It is also generalized to work where sizeof(size_t)
+// is not 8.
+TfLiteStatus MultiplyAndCheckOverflow(size_t a, size_t b, size_t* product);
+
+// Returns whether the TfLiteTensor is a resource or variant tensor.
+inline bool IsResourceOrVariant(const TfLiteTensor* tensor) {
+  return tensor->type == kTfLiteResource || tensor->type == kTfLiteVariant;
+}
+
 }  // namespace tflite
 
 #endif  // TENSORFLOW_LITE_UTIL_H_

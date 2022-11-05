@@ -23,7 +23,8 @@ include(OverridableFetchContent)
 OverridableFetchContent_Declare(
   abseil-cpp
   GIT_REPOSITORY https://github.com/abseil/abseil-cpp
-  GIT_TAG 20200225.2 # TODO: What version does GRPC and TFLite need?
+  # Sync with tensorflow/third_party/absl/workspace.bzl
+  GIT_TAG 273292d1cfc0a94a65082ee350509af1d113344d
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE
   PREFIX "${CMAKE_BINARY_DIR}"
@@ -39,6 +40,5 @@ set(ABSL_RUN_TESTS OFF CACHE BOOL "Disable build of ABSL tests")
 add_subdirectory(
   "${abseil-cpp_SOURCE_DIR}"
   "${abseil-cpp_BINARY_DIR}"
-  EXCLUDE_FROM_ALL
 )
 

@@ -15,6 +15,7 @@
 # ==============================================================================
 
 set -e
+set -x
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../../" && pwd)"
@@ -41,7 +42,7 @@ function generate_list_field {
   local list_string="$2"
   local list=(${list_string//,/ })
 
-  local message+=("$name=[")
+  local message=("$name=[")
   for item in "${list[@]}"
   do
     message+=("\"$item\",")
@@ -51,12 +52,14 @@ function generate_list_field {
 }
 
 function print_output {
-  echo "Output can be found here:"
-  for i in "$@"
-  do
-    # Check if the file exist.
-    ls -1a ${ROOT_DIR}/$i
-  done
+  if [ -z OMIT_PRINTING_OUTPUT_PATHS ]; then
+    echo "Output can be found here:"
+    for i in "$@"
+    do
+      # Check if the file exist.
+      ls -1a ${ROOT_DIR}/$i
+    done
+  fi
 }
 
 function generate_tflite_aar {
@@ -85,8 +88,10 @@ function generate_tflite_aar {
 
   # Build the aar package.
   popd > /dev/null
-  bazel build -c opt --cxxopt='--std=c++14' \
+  # TODO(b/254278688): Enable 'xnn_enable_arm_fp16' with toolchain upgrade.
+  bazel ${CACHE_DIR_FLAG} build -c opt --cxxopt='--std=c++17' \
         --fat_apk_cpu=${TARGET_ARCHS} \
+        --define=xnn_enable_arm_fp16=false \
         --host_crosstool_top=@bazel_tools//tools/cpp:toolchain \
         //tmp:tensorflow-lite
 
@@ -119,8 +124,10 @@ function generate_flex_aar {
   popd
 
   # Build the aar package.
-  bazel build -c opt --cxxopt='--std=c++14' \
+  # TODO(b/254278688): Enable 'xnn_enable_arm_fp16' with toolchain upgrade.
+  bazel ${CACHE_DIR_FLAG} build -c opt --cxxopt='--std=c++17' \
       --fat_apk_cpu=${TARGET_ARCHS} \
+      --define=xnn_enable_arm_fp16=false \
       --host_crosstool_top=@bazel_tools//tools/cpp:toolchain \
       //tmp:tensorflow-lite-select-tf-ops
 
@@ -129,6 +136,11 @@ function generate_flex_aar {
 
 # Check command line flags.
 TARGET_ARCHS=x86,x86_64,arm64-v8a,armeabi-v7a
+# If the environmant variable BAZEL_CACHE_DIR is set, use it as the user root
+# directory of bazel.
+if [ ! -z ${BAZEL_CACHE_DIR} ]; then
+  CACHE_DIR_FLAG="--output_user_root=${BAZEL_CACHE_DIR}/cache"
+fi
 
 if [ "$#" -gt 4 ]; then
   echo "ERROR: Too many arguments."
@@ -169,9 +181,12 @@ else
 fi
 
 # Build the standard aar package of no models provided.
+# TODO(b/254278688): Enable 'xnn_enable_arm_fp16' with toolchain upgrade.
 if [ -z ${FLAG_MODELS} ]; then
-  bazel build -c opt --cxxopt='--std=c++14' \
+  bazel ${CACHE_DIR_FLAG} build -c opt --cxxopt='--std=c++17' \
+    --config=monolithic \
     --fat_apk_cpu=${TARGET_ARCHS} \
+    --define=xnn_enable_arm_fp16=false \
     --host_crosstool_top=@bazel_tools//tools/cpp:toolchain \
     //tensorflow/lite/java:tensorflow-lite
 
@@ -203,8 +218,10 @@ done
 generate_tflite_aar
 
 # Build flex aar if one of the models contain flex ops.
-bazel build -c opt --config=monolithic //tensorflow/lite/tools:list_flex_ops_no_kernel_main
-bazel-bin/tensorflow/lite/tools/list_flex_ops_no_kernel_main --graphs=${FLAG_MODELS} > ${TMP_DIR}/ops_list.txt
+bazel ${CACHE_DIR_FLAG} build -c opt --config=monolithic \
+  //tensorflow/lite/tools:list_flex_ops_no_kernel_main
+bazel-bin/tensorflow/lite/tools/list_flex_ops_no_kernel_main \
+  --graphs=${FLAG_MODELS} > ${TMP_DIR}/ops_list.txt
 if [[ `cat ${TMP_DIR}/ops_list.txt` != "[]" ]]; then
   generate_flex_aar
 fi

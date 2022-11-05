@@ -155,9 +155,11 @@ TEST_F(FlatbufferConversionsTest, TestConvertTensorTypeFloat16) {
   EXPECT_EQ(kTfLiteFloat16, type);
 }
 
-}  // namespace tflite
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+TEST_F(FlatbufferConversionsTest, TestConvertTensorTypeInt4) {
+  TfLiteType type;
+  EXPECT_EQ(kTfLiteOk,
+            ConvertTensorType(TensorType_INT4, &type, &mock_reporter_));
+  EXPECT_EQ(kTfLiteInt4, type);
 }
+
+}  // namespace tflite

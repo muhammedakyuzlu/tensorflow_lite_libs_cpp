@@ -15,6 +15,7 @@ limitations under the License.
 
 #include <math.h>
 
+#include <algorithm>
 #include <cstddef>
 
 #include "tensorflow/lite/c/builtin_op_data.h"
@@ -62,8 +63,12 @@ TfLiteStatus PopulateQuantizedLstmParams8x8_16(
       context,
       GetOutputSafe(context, node, lstm::full::kOutputTensor, &output_tensor));
 
+  TF_LITE_ENSURE(context,
+                 cell_state->quantization.type != kTfLiteNoQuantization);
   auto* cell_state_params =
       static_cast<TfLiteAffineQuantization*>(cell_state->quantization.params);
+  TF_LITE_ENSURE(context,
+                 output_tensor->quantization.type != kTfLiteNoQuantization);
   auto* proj_params = static_cast<TfLiteAffineQuantization*>(
       output_tensor->quantization.params);
   if (cell_clip > 0.0) {
@@ -160,6 +165,8 @@ TfLiteStatus PopulateQuantizedLstmParams8x8_16(
       TfLiteTensor* intermediate;
       TF_LITE_ENSURE_OK(context,
                         GetIntermediatesSafe(context, node, i, &intermediate));
+      TF_LITE_ENSURE(context,
+                     intermediate->quantization.type != kTfLiteNoQuantization);
       auto* params = static_cast<TfLiteAffineQuantization*>(
           intermediate->quantization.params);
       intermediate_scale.push_back(params->scale->data[0]);
@@ -170,10 +177,11 @@ TfLiteStatus PopulateQuantizedLstmParams8x8_16(
       intermediate_zp.push_back(0);
     }
   }
-  // In the absense of projection, hidden becomes otuput and this intermediate
+  // In the absence of projection, hidden becomes otuput and this intermediate
   // is ignored.
   TfLiteTensor* hidden;
   TF_LITE_ENSURE_OK(context, GetIntermediatesSafe(context, node, 4, &hidden));
+  TF_LITE_ENSURE(context, hidden->quantization.type != kTfLiteNoQuantization);
   auto* hidden_params =
       static_cast<TfLiteAffineQuantization*>(hidden->quantization.params);
   intermediate_scale.push_back(hidden_params->scale->data[0]);
@@ -760,6 +768,8 @@ TfLiteStatus PopulatePrecomputedZPTimesWeightsWithBias(TfLiteContext* context,
 
   const TfLiteTensor* intermediate =
       &context->tensors[node->intermediates->data[4]];
+  TF_LITE_ENSURE(context,
+                 intermediate->quantization.type != kTfLiteNoQuantization);
   const auto* params =
       static_cast<TfLiteAffineQuantization*>(intermediate->quantization.params);
   const int32_t hidden_zp = params->zero_point->data[0];
@@ -863,7 +873,7 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
     // This is deprecated and is only kept here for backward compatibility.
     use_layer_norm = false;
   } else {
-    context->ReportError(
+    TF_LITE_KERNEL_LOG(
         context, "The LSTM Full kernel expects 20 or 24 inputs. Got %d inputs",
         node->inputs->size);
     return kTfLiteError;
@@ -962,11 +972,13 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
   TfLiteIntArray* scratch_buffer_size = TfLiteIntArrayCreate(2);
   scratch_buffer_size->data[0] = n_batch;
   if (use_cifg) {
-    // Reserving space for Cell, Forget, Output gates
-    scratch_buffer_size->data[1] = n_cell * 3;
+    // Reserving space for Cell, Forget, Output gates and scratch accumulation
+    // buffer and an extra 16 bytes to avoid internal ruy copies.
+    scratch_buffer_size->data[1] = n_cell * 4 + 16;
   } else {
-    // Reserving space for Input, Cell, Forget, Output gates
-    scratch_buffer_size->data[1] = n_cell * 4;
+    // Reserving space for Input, Cell, Forget, Output gates and scratch
+    // accumulation buffer and an extra 16 bytes to avoid internal ruy copies.
+    scratch_buffer_size->data[1] = n_cell * 5 + 16;
   }
   TF_LITE_ENSURE_OK(context, context->ResizeTensor(context, scratch_buffer,
                                                    scratch_buffer_size));
@@ -1139,6 +1151,7 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
     TF_LITE_ENSURE_OK(context,
                       GetTemporarySafe(context, node, kRowSums, &row_sums));
     row_sums->type = kTfLiteInt32;
+    row_sums->name = "Lstm_row_sums";
     row_sums->allocation_type = kTfLiteArenaRwPersistent;
     int row_sums_rows = use_cifg ? 6 : 8;
     const TfLiteTensor* projection_weights = GetOptionalInputTensor(
@@ -1333,8 +1346,8 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
           forget_gate_bias, cell_gate_bias, output_gate_bias,
           projection_weights, projection_bias, &lstm_params,
           /*forward_sequence=*/true, time_major,
-          /*output_offset=*/0, scratch_buffer, output_state, cell_state,
-          output);
+          /*output_offset=*/0, scratch_buffer, output_state, cell_state, output,
+          CpuBackendContext::GetFromContext(context));
     }
     case kTfLiteUInt8:
     case kTfLiteInt8: {
@@ -1434,7 +1447,6 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
                          TfLiteTypeGetName(input_to_output_weights->type));
       return kTfLiteError;
   }
-  return kTfLiteOk;
 }
 }  // namespace unidirectional_sequence_lstm
 

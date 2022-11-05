@@ -375,6 +375,13 @@ TEST(BCastTest, Basic_Tensor_Scalar) {
             "[11,7,5,3,2]"
             "[11,7,5,3,2]"
             "[0,1,2,3,4][]");
+
+  // int32 edge-case:
+  EXPECT_EQ(BCast({1, 2147483648}, {1}),
+            "[2147483648][1][1][2147483648]"
+            "[2147483648]"
+            "[1,2147483648]"
+            "[0][0,1]");
 }
 
 TEST(BCastTest, Basic_Tensor_With_DimSize_1_Scalar) {
@@ -546,6 +553,15 @@ TEST(BCastTest, Basic_Tensor_Matrix_As_Tensor) {
             "[0,3,4][]");
 }
 
+TEST(BCastTest, Basic_SymbolicShape) {
+  constexpr int64_t kSymDim1 = -10'000'000'000;
+  constexpr int64_t kSymDim2 = -10'000'000'001;
+
+  const tensorflow::BCast bcast({10, kSymDim1, kSymDim2}, {10, 1, 1}, false);
+  EXPECT_TRUE(bcast.IsValid());
+  EXPECT_EQ(bcast.output_batch_size(), -1);
+}
+
 TEST(BCastTest, Complex_BCast_To_Each_Other) {
   // Rare cases. x and y broadcast to each other.  x and y are of
   // different ranks.
@@ -673,15 +689,17 @@ TEST(BCastTest, BatchIndices) {
             BCastBatchIndices({3, 1}, {2, 1, 2}));
 }
 
-static void BM_BCastSetup(int iters, int same_shape) {
+void BM_BCastSetup(::testing::benchmark::State& state) {
+  const int same_shape = state.range(0);
+
   if (same_shape) {
-    testing::SetLabel("same_shapes");
-    while (--iters > 0) {
+    state.SetLabel("same_shapes");
+    for (auto s : state) {
       class BCast b({1000, 100}, {1000, 100});
     }
   } else {
-    testing::SetLabel("different_shapes");
-    while (--iters > 0) {
+    state.SetLabel("different_shapes");
+    for (auto s : state) {
       class BCast b({3, 1, 5}, {2, 0, 3, 0, 5});
     }
   }

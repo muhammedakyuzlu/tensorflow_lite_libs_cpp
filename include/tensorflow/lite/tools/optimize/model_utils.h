@@ -15,6 +15,8 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_TOOLS_OPTIMIZE_MODEL_UTILS_H_
 #define TENSORFLOW_LITE_TOOLS_OPTIMIZE_MODEL_UTILS_H_
 
+#include <string>
+
 #include "absl/memory/memory.h"
 #include "tensorflow/lite/kernels/internal/types.h"
 #include "tensorflow/lite/model.h"
@@ -51,13 +53,23 @@ bool QuantizationParametersExist(const TensorT* tensor);
 bool HasBuffer(const ModelT* model, const SubGraphT* subgraph,
                int tensor_index);
 
-bool IsQuantized(const SubGraphT* subgraph, int tensor_index);
-
 bool HasMinMax(const TensorT* tensor);
 
 // Set version of OperatorCode. The version will only be applied for operations
 // that have been quantized.
 void SetOperatorCodeVersion(ModelT* model);
+
+// Writes model buffer to file.
+void WriteFile(const std::string& out_file, const uint8_t* bytes,
+               size_t num_bytes);
+
+// Finishes model buffer and returns its builder.
+std::unique_ptr<flatbuffers::FlatBufferBuilder> FinishModel(
+    const tflite::ModelT* model);
+
+// Reads TensorFlow Lite model from the given path.
+std::unique_ptr<tflite::ModelT> CreateMutableModelFromFile(
+    const string& model_filepath);
 
 }  // namespace utils
 }  // namespace optimize

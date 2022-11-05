@@ -1,11 +1,8 @@
-load("//tensorflow:tensorflow.bzl", "pybind_extension")
-
-# buildifier: disable=same-origin-load
-load("//tensorflow:tensorflow.bzl", "get_compatible_with_portable")
+load("//tensorflow:tensorflow.default.bzl", "get_compatible_with_portable", "pybind_extension")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 cc_library(
@@ -37,9 +34,11 @@ cc_library(
         "//tensorflow/lite:string_util",
         "//tensorflow/lite:util",
         "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core:headers",
         "//tensorflow/lite/core/api",
-        "//tensorflow/lite/experimental/tflite_api_dispatcher",
         "//tensorflow/lite/kernels:builtin_ops",
+        "//tensorflow/lite/kernels:reference_ops",
+        "//tensorflow/lite/kernels/internal:compatibility",
         "//third_party/python_runtime:headers",  # buildcleaner: keep
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
@@ -84,13 +83,12 @@ pybind_extension(
     hdrs = ["interpreter_wrapper.h"],
     compatible_with = get_compatible_with_portable(),
     link_in_framework = True,
-    module_name = "_pywrap_tensorflow_interpreter_wrapper",
     deps = [
         ":interpreter_wrapper_lib",
         "@pybind11",
+        "//tensorflow/lite/core:headers",
         "//third_party/python_runtime:headers",
         "//tensorflow/lite:framework_lib",
-        "//tensorflow/lite/experimental/tflite_api_dispatcher",
         "//tensorflow/python:pybind11_lib",
     ] + select({
         ":tflite_pip_with_flex": ["//tensorflow/lite/delegates/flex:delegate"],

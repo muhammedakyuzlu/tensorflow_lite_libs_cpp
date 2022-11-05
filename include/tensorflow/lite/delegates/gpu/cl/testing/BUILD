@@ -1,6 +1,6 @@
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 cc_binary(
@@ -13,11 +13,28 @@ cc_binary(
     deps = [
         "//tensorflow/lite/delegates/gpu:delegate",
         "//tensorflow/lite/delegates/gpu/cl:gpu_api_delegate",
+        "//tensorflow/lite/delegates/gpu/common:model_builder",
         "//tensorflow/lite/delegates/gpu/common:status",
-        "//tensorflow/lite/delegates/gpu/common/testing:tflite_model_reader",
         "//tensorflow/lite/kernels:builtin_ops",
         "//tensorflow/lite/kernels:kernel_util",
         "@com_google_absl//absl/time",
+    ],
+)
+
+cc_test(
+    name = "gpu_model_test",
+    srcs = ["gpu_model_test.cc"],
+    tags = [
+        "noasan",
+        "nomsan",
+        "notsan",
+        "requires-gpu-nvidia",
+    ],
+    deps = [
+        "//tensorflow/lite/delegates/gpu/cl/kernels:cl_test",
+        "//tensorflow/lite/delegates/gpu/common:gpu_model_test_util",
+        "//tensorflow/lite/delegates/gpu/common:status",
+        "@com_google_googletest//:gtest_main_no_heapcheck",  # constant buffers leak on nvidia
     ],
 )
 
@@ -34,10 +51,25 @@ cc_binary(
         "//tensorflow/lite/delegates/gpu/cl:environment",
         "//tensorflow/lite/delegates/gpu/cl:inference_context",
         "//tensorflow/lite/delegates/gpu/common:model",
+        "//tensorflow/lite/delegates/gpu/common:model_builder",
         "//tensorflow/lite/delegates/gpu/common:status",
-        "//tensorflow/lite/delegates/gpu/common/testing:tflite_model_reader",
         "//tensorflow/lite/kernels:builtin_ops",
         "//tensorflow/lite/kernels:kernel_util",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "memory_sharing_sample",
+    srcs = ["memory_sharing_sample.cc"],
+    deps = [
+        "//tensorflow/lite/delegates/gpu/cl:environment",
+        "//tensorflow/lite/delegates/gpu/cl:inference_context",
+        "//tensorflow/lite/delegates/gpu/common:model",
+        "//tensorflow/lite/delegates/gpu/common:model_builder",
+        "//tensorflow/lite/delegates/gpu/common:status",
+        "//tensorflow/lite/kernels:builtin_ops",
         "@com_google_absl//absl/time",
     ],
 )
@@ -49,8 +81,8 @@ cc_binary(
         "//tensorflow/lite/delegates/gpu/cl:environment",
         "//tensorflow/lite/delegates/gpu/cl:inference_context",
         "//tensorflow/lite/delegates/gpu/common:model",
+        "//tensorflow/lite/delegates/gpu/common:model_builder",
         "//tensorflow/lite/delegates/gpu/common:status",
-        "//tensorflow/lite/delegates/gpu/common/testing:tflite_model_reader",
         "//tensorflow/lite/kernels:builtin_ops",
         "@com_google_absl//absl/time",
     ],

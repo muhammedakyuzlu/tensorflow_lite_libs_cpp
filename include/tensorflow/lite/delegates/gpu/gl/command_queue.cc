@@ -15,6 +15,8 @@ limitations under the License.
 
 #include "tensorflow/lite/delegates/gpu/gl/command_queue.h"
 
+#include <memory>
+
 #include "absl/memory/memory.h"
 #include "tensorflow/lite/delegates/gpu/common/gpu_info.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
@@ -86,17 +88,17 @@ class AdrenoCommandQueue : public DefaultCommandQueue {
 }  // namespace
 
 std::unique_ptr<CommandQueue> NewCommandQueue(const GpuInfo& gpu_info) {
-  if (gpu_info.type == GpuType::ADRENO) {
+  if (gpu_info.IsAdreno()) {
     int flush_every_n = 1;
     // On Adreno 630 and Adreno 505 there is up to 2x performance boost when
     // glFlush happens not so often.
-    if (gpu_info.gpu_model == GpuModel::ADRENO630 ||
-        gpu_info.gpu_model == GpuModel::ADRENO505) {
+    if (gpu_info.adreno_info.adreno_gpu == AdrenoGpu::kAdreno630 ||
+        gpu_info.adreno_info.adreno_gpu == AdrenoGpu::kAdreno505) {
       flush_every_n = 10;
     }
-    return absl::make_unique<AdrenoCommandQueue>(flush_every_n);
+    return std::make_unique<AdrenoCommandQueue>(flush_every_n);
   }
-  return absl::make_unique<DefaultCommandQueue>();
+  return std::make_unique<DefaultCommandQueue>();
 }
 
 }  // namespace gl

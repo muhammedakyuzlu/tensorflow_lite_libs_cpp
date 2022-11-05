@@ -41,12 +41,6 @@ struct OpData {
   bool requires_broadcast;
 };
 
-template <typename T>
-T FloorDiv(T input1, T input2) {
-  return std::floor(std::divides<double>()(static_cast<double>(input1),
-                                           static_cast<double>(input2)));
-}
-
 void* Init(TfLiteContext* context, const char* buffer, size_t length) {
   auto* data = new OpData;
   data->requires_broadcast = false;
@@ -82,8 +76,8 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
     case kTfLiteInt32:
       break;
     default:
-      context->ReportError(context, "Type '%s' is not supported by floor_div.",
-                           TfLiteTypeGetName(type));
+      TF_LITE_KERNEL_LOG(context, "Type '%s' is not supported by floor_div.",
+                         TfLiteTypeGetName(type));
       return kTfLiteError;
   }
   output->type = type;
@@ -110,7 +104,7 @@ TfLiteStatus EvalImpl(TfLiteContext* context, bool requires_broadcast,
   // Validate the denominator.
   for (int i = 0; i < NumElements(input2); ++i) {
     if (std::equal_to<T>()(denominator_data[i], 0)) {
-      context->ReportError(context, "Division by 0");
+      TF_LITE_KERNEL_LOG(context, "Division by 0");
       return kTfLiteError;
     }
   }
@@ -118,12 +112,13 @@ TfLiteStatus EvalImpl(TfLiteContext* context, bool requires_broadcast,
     reference_ops::BroadcastBinaryFunction4DSlow<T, T, T>(
         GetTensorShape(input1), GetTensorData<T>(input1),
         GetTensorShape(input2), denominator_data, GetTensorShape(output),
-        GetTensorData<T>(output), FloorDiv<T>);
+        GetTensorData<T>(output), reference_ops::FloorDiv<T>);
   } else {
     reference_ops::BinaryFunction<T, T, T>(
         GetTensorShape(input1), GetTensorData<T>(input1),
         GetTensorShape(input2), GetTensorData<T>(input2),
-        GetTensorShape(output), GetTensorData<T>(output), FloorDiv<T>);
+        GetTensorShape(output), GetTensorData<T>(output),
+        reference_ops::FloorDiv<T>);
   }
 
   return kTfLiteOk;
@@ -152,8 +147,8 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
                              output);
     }
     default: {
-      context->ReportError(context, "Type '%s' is not supported by floor_div.",
-                           TfLiteTypeGetName(input1->type));
+      TF_LITE_KERNEL_LOG(context, "Type '%s' is not supported by floor_div.",
+                         TfLiteTypeGetName(input1->type));
       return kTfLiteError;
     }
   }

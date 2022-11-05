@@ -124,9 +124,9 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
   TF_LITE_ENSURE(context, axis_value >= 0);
   TF_LITE_ENSURE(context, axis_value < NumDimensions(op_context.input));
 
-  // TODO(ahentz): Our usage of VectorOfTensors could be optimized by
+  // TODO(b/173221795): Our usage of VectorOfTensors could be optimized by
   // calculating it in Prepare, unless we defer shape calculation.
-  // TODO(ahentz): We can improve the optimized_ops version to handle other
+  // We can improve the optimized_ops version to handle other
   // cases too.
 #define TF_LITE_SPLIT(scalar)                                       \
   VectorOfTensors<scalar> all_outputs(*context, *node->outputs);    \
@@ -159,8 +159,8 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
       break;
     }
     default:
-      context->ReportError(context, "Type %s currently not supported.",
-                           TfLiteTypeGetName(op_context.input->type));
+      TF_LITE_KERNEL_LOG(context, "Type %s currently not supported.",
+                         TfLiteTypeGetName(op_context.input->type));
       return kTfLiteError;
   }
 #undef TF_LITE_SPLIT

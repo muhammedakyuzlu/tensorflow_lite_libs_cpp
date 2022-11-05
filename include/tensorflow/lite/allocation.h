@@ -17,18 +17,17 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_ALLOCATION_H_
 #define TENSORFLOW_LITE_ALLOCATION_H_
 
+#include <stddef.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
-#include <vector>
 
-#include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/core/api/error_reporter.h"
-#include "tensorflow/lite/string_type.h"
 
 namespace tflite {
 
-// A memory allocation handle. This could be a mmap or shared memory.
+/// A memory allocation handle. This could be a mmap or shared memory.
 class Allocation {
  public:
   virtual ~Allocation() {}
@@ -39,13 +38,13 @@ class Allocation {
     kMemory,
   };
 
-  // Base pointer of this allocation
+  /// Base pointer of this allocation
   virtual const void* base() const = 0;
-  // Size in bytes of the allocation
+  /// Size in bytes of the allocation
   virtual size_t bytes() const = 0;
-  // Whether the allocation is valid
+  /// Whether the allocation is valid
   virtual bool valid() const = 0;
-  // Return the type of the Allocation.
+  /// Return the type of the Allocation.
   Type type() const { return type_; }
 
  protected:
@@ -57,10 +56,26 @@ class Allocation {
   const Type type_;
 };
 
+/// Note that not all platforms support MMAP-based allocation.
+/// Use `IsSupported()` to check.
 class MMAPAllocation : public Allocation {
  public:
+  /// Loads and maps the provided file to a memory region.
   MMAPAllocation(const char* filename, ErrorReporter* error_reporter);
-  virtual ~MMAPAllocation();
+
+  /// Maps the provided file descriptor to a memory region.
+  /// Note: The provided file descriptor will be dup'ed for usage; the caller
+  /// retains ownership of the provided descriptor and should close accordingly.
+  MMAPAllocation(int fd, ErrorReporter* error_reporter);
+
+  /// Maps the provided file descriptor, with the given offset and length (both
+  /// in bytes), to a memory region.
+  /// Note: The provided file descriptor will be dup'ed for usage; the caller
+  /// retains ownership of the provided descriptor and should close accordingly.
+  MMAPAllocation(int fd, size_t offset, size_t length,
+                 ErrorReporter* error_reporter);
+
+  ~MMAPAllocation() override;
   const void* base() const override;
   size_t bytes() const override;
   bool valid() const override;
@@ -74,30 +89,42 @@ class MMAPAllocation : public Allocation {
   int mmap_fd_ = -1;  // mmap file descriptor
   const void* mmapped_buffer_;
   size_t buffer_size_bytes_ = 0;
+  // Used when the address to mmap is not page-aligned.
+  size_t offset_in_buffer_ = 0;
+
+ private:
+  // Assumes ownership of the provided `owned_fd` instance.
+  MMAPAllocation(ErrorReporter* error_reporter, int owned_fd);
+
+  // Assumes ownership of the provided `owned_fd` instance, and uses the given
+  // offset and length (both in bytes) for memory mapping.
+  MMAPAllocation(ErrorReporter* error_reporter, int owned_fd, size_t offset,
+                 size_t length);
 };
 
 class FileCopyAllocation : public Allocation {
  public:
+  /// Loads the provided file into a heap memory region.
   FileCopyAllocation(const char* filename, ErrorReporter* error_reporter);
-  virtual ~FileCopyAllocation();
+  ~FileCopyAllocation() override;
   const void* base() const override;
   size_t bytes() const override;
   bool valid() const override;
 
  private:
-  // Data required for mmap.
   std::unique_ptr<const char[]> copied_buffer_;
   size_t buffer_size_bytes_ = 0;
 };
 
 class MemoryAllocation : public Allocation {
  public:
-  // Allocates memory with the pointer and the number of bytes of the memory.
-  // The pointer has to remain alive and unchanged until the destructor is
-  // called.
+  /// Provides a (read-only) view of the provided buffer region as an
+  /// allocation.
+  /// Note: The caller retains ownership of `ptr`, and must ensure it remains
+  /// valid for the lifetime of the class instance.
   MemoryAllocation(const void* ptr, size_t num_bytes,
                    ErrorReporter* error_reporter);
-  virtual ~MemoryAllocation();
+  ~MemoryAllocation() override;
   const void* base() const override;
   size_t bytes() const override;
   bool valid() const override;

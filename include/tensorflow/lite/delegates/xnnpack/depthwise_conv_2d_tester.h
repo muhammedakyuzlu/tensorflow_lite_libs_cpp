@@ -21,6 +21,7 @@ limitations under the License.
 
 #include <gtest/gtest.h>
 #include "tensorflow/lite/c/common.h"
+#include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
 namespace tflite {
@@ -159,6 +160,22 @@ class DepthwiseConv2DTester {
 
   inline bool FP16Weights() const { return fp16_weights_; }
 
+  inline DepthwiseConv2DTester& INT8Weights() {
+    int8_weights_ = true;
+    return *this;
+  }
+
+  inline bool INT8Weights() const { return int8_weights_; }
+
+  inline DepthwiseConv2DTester& INT8ChannelWiseWeights() {
+    int8_channel_wise_weights_ = true;
+    return *this;
+  }
+
+  inline bool INT8ChannelWiseWeights() const {
+    return int8_channel_wise_weights_;
+  }
+
   inline DepthwiseConv2DTester& SparseWeights() {
     sparse_weights_ = true;
     return *this;
@@ -201,6 +218,12 @@ class DepthwiseConv2DTester {
     return *this;
   }
 
+  inline DepthwiseConv2DTester& WeightsCache(
+      TfLiteXNNPackDelegateWeightsCache* weights_cache) {
+    weights_cache_ = weights_cache;
+    return *this;
+  }
+
   void Test(TfLiteDelegate* delegate) const;
 
  private:
@@ -224,10 +247,13 @@ class DepthwiseConv2DTester {
   int32_t dilation_height_ = 1;
   int32_t dilation_width_ = 1;
   bool fp16_weights_ = false;
+  bool int8_weights_ = false;
+  bool int8_channel_wise_weights_ = false;
   bool sparse_weights_ = false;
   ::tflite::Padding padding_ = ::tflite::Padding_VALID;
   ::tflite::ActivationFunctionType activation_ =
       ::tflite::ActivationFunctionType_NONE;
+  TfLiteXNNPackDelegateWeightsCache* weights_cache_ = nullptr;
 };
 
 }  // namespace xnnpack

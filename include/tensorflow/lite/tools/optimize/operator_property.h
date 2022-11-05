@@ -15,6 +15,9 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_TOOLS_OPTIMIZE_OPERATOR_PROPERTY_H_
 #define TENSORFLOW_LITE_TOOLS_OPTIMIZE_OPERATOR_PROPERTY_H_
 
+#include <functional>
+#include <initializer_list>
+
 #include "tensorflow/lite/model.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
@@ -105,13 +108,15 @@ struct OperatorProperty {
   // Intermediate indexes -> intermediate tensor property.
   std::vector<std::pair<int, TensorProperty>> intermediates = {};
 
-  // Force output to reuse the same scale and zero point of input.
-  bool restrict_same_input_output_scale = false;
+  // Force output to reuse the same scale and zero point of input when the
+  // certain type support must require the same scale and zero point
+  // requirement.
+  std::function<bool(TensorType)> restrict_same_input_output_scale =
+      [](TensorType) { return false; };
 
   // Use same min of min and max of max for each group.
   // Incompatible with restrict_same_input_output_scale and restricted_value.
-  // TODO(jianlijianli): make it compatible with other restrictions when there
-  // is a use case.
+  // Currently it only supports scale pair of {input_index, output_index}.
   std::vector<std::vector<int>> restrict_scale = {};
 
   // Op version.
@@ -125,8 +130,22 @@ struct OperatorProperty {
   bool quantize_input_as_activations = false;
 };
 
+// The op as well as it variants.
+struct OpVariant {
+  BuiltinOperator op_code;
+  bool use_layer_norm = false;
+  bool use_projection = false;
+  bool use_peephole = false;
+  // An attribute to indicate if quantization is supported for this Op.
+  // This attribute is equivalent to the "quantizable" attribute in
+  // "OperatorProperty". It added here since OpVariants peeks inside the Op and
+  // determines its quantization related properties.
+  bool is_quantizable = true;
+};
+
 OperatorProperty GetOperatorProperty(const ModelT* model, int subgraph_index,
                                      int op_index);
+OperatorProperty GetOperatorProperty(OpVariant op_variant);
 
 }  // namespace operator_property
 }  // namespace optimize

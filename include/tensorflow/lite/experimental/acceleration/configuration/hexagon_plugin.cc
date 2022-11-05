@@ -44,7 +44,7 @@ class HexagonPlugin : public DelegatePluginInterface {
   }
   static std::unique_ptr<HexagonPlugin> New(
       const TFLiteSettings& tflite_settings) {
-    return absl::make_unique<HexagonPlugin>(tflite_settings);
+    return std::make_unique<HexagonPlugin>(tflite_settings);
   }
   explicit HexagonPlugin(const TFLiteSettings& tflite_settings) {
     const HexagonSettings* settings = tflite_settings.hexagon_settings();
@@ -55,6 +55,10 @@ class HexagonPlugin : public DelegatePluginInterface {
       options_.powersave_level = settings->powersave_level();
       options_.print_graph_profile = settings->print_graph_profile();
       options_.print_graph_debug = settings->print_graph_debug();
+      if (tflite_settings.max_delegated_partitions() >= 0) {
+        options_.max_delegated_partitions =
+            tflite_settings.max_delegated_partitions();
+      }
     }
 #else
     (void)settings;

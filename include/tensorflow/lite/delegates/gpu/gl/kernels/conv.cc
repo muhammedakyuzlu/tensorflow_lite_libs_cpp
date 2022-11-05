@@ -15,7 +15,10 @@ limitations under the License.
 
 #include "tensorflow/lite/delegates/gpu/gl/kernels/conv.h"
 
+#include <any>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/memory/memory.h"
@@ -44,7 +47,11 @@ class Convolution : public NodeShader {
           "Convolution does not support more than 1 runtime tensor");
     }
     const auto& attr =
-        absl::any_cast<const Convolution2DAttributes&>(ctx.op_attr);
+        std::any_cast<const Convolution2DAttributes&>(ctx.op_attr);
+    if (attr.groups != 1) {
+      return absl::UnimplementedError(
+          "Convolution does not support more than 1 group");
+    }
     auto weights = attr.weights.shape;
     const int offsets_count = weights.h * weights.w;
     const bool offsets_count_too_large = offsets_count > kMaxConstArraySize;
@@ -134,7 +141,7 @@ class Convolution : public NodeShader {
         /*workload=*/uint3(),
         /*workgroup=*/
         GetIdealWorkgroupIfPossible(
-            ctx.gpu_info->gpu_model, OperationType::CONVOLUTION_2D,
+            *ctx.gpu_info, OperationType::CONVOLUTION_2D,
             HW(weights.h, weights.w), attr.strides, uint3(0, 0, 0),
             OHWI(weights.o, ctx.input_shapes[0][1], ctx.input_shapes[0][2],
                  ctx.input_shapes[0][3])),
@@ -149,8 +156,10 @@ class Convolution : public NodeShader {
 int SelectMultiplier(int32_t input_width,
                      const NodeShader::GenerationContext& ctx) {
   std::vector<int> multipliers = {4, 2};
-  if (!ctx.compiler_options.allow_precision_loss &&
-      ctx.gpu_info->type == GpuType::MALI) {
+  if (ctx.gpu_info->IsAMD()) {
+    return 1;
+  }
+  if (!ctx.compiler_options.allow_precision_loss && ctx.gpu_info->IsMali()) {
     multipliers = {2};
   }
   for (int i : multipliers) {
@@ -170,7 +179,7 @@ class Convolution1x1 : public NodeShader {
           "Convolution does not support more than 1 runtime tensor");
     }
     const auto& attr =
-        absl::any_cast<const Convolution2DAttributes&>(ctx.op_attr);
+        std::any_cast<const Convolution2DAttributes&>(ctx.op_attr);
     if (attr.weights.shape.h != 1 || attr.weights.shape.w != 1) {
       return absl::UnimplementedError("Height and width should be 1.");
     }
@@ -234,7 +243,7 @@ class Convolution1x1 : public NodeShader {
 
     auto dst_depth = DivideRoundUp(ctx.output_shapes[0][3], 4);
     uint3 workgroup = uint3(16, 16, 1);
-    if (ctx.gpu_info->type == GpuType::ADRENO) {
+    if (ctx.gpu_info->IsAdreno()) {
       if (dst_depth >= 2) {
         workgroup = uint3(8, 8, 2);
       }
@@ -276,7 +285,7 @@ class Convolution1x1 : public NodeShader {
               DivideRoundUp(ctx.output_shapes[0][3], 4)),
         /*workgroup=*/
         GetIdealWorkgroupIfPossible(
-            ctx.gpu_info->gpu_model, OperationType::CONVOLUTION_2D,
+            *ctx.gpu_info, OperationType::CONVOLUTION_2D,
             HW(attr.weights.shape.h, attr.weights.shape.w), attr.strides,
             workgroup,
             OHWI(attr.weights.shape.o, ctx.input_shapes[0][1],
@@ -293,11 +302,11 @@ class Convolution1x1 : public NodeShader {
 }  // namespace
 
 std::unique_ptr<NodeShader> NewConvolutionNodeShader() {
-  return absl::make_unique<Convolution>();
+  return std::make_unique<Convolution>();
 }
 
 std::unique_ptr<NodeShader> NewConvolution1x1NodeShader() {
-  return absl::make_unique<Convolution1x1>();
+  return std::make_unique<Convolution1x1>();
 }
 
 }  // namespace gl

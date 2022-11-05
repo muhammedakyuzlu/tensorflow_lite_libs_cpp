@@ -1,15 +1,15 @@
 load("//tensorflow:tensorflow.bzl", "tf_cc_binary")
 load("//tensorflow/lite:special_rules.bzl", "tflite_portable_test_suite")
-load("//tensorflow/lite:build_def.bzl", "tflite_copts", "tflite_linkopts")
+load("//tensorflow/lite:build_def.bzl", "tflite_copts", "tflite_copts_warnings", "tflite_linkopts")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
-common_copts = ["-Wall"] + tflite_copts()
+common_copts = tflite_copts() + tflite_copts_warnings()
 
 # We create a library for benchmark_main.cc to faciliate the creation of a
 # customized benchmark model binary that only needs linking with extra
@@ -69,7 +69,7 @@ cc_binary(
 # As with most target binaries that use flex, this should be built with the
 # `--config=monolithic` build flag, e.g.,
 #    bazel build --config=monolithic --config=android_arm64 \
-#        -c opt --cxxopt='--std=c++14' :benchmark_model_plus_flex
+#        -c opt --cxxopt='--std=c++17' :benchmark_model_plus_flex
 tf_cc_binary(
     name = "benchmark_model_plus_flex",
     srcs = [
@@ -113,6 +113,7 @@ cc_test(
         ":benchmark_tflite_model_lib",
         "//tensorflow/lite:framework",
         "//tensorflow/lite:string_util",
+        "//tensorflow/lite/c:c_api_types",
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/testing:util",
         "//tensorflow/lite/tools:command_line_flags",
@@ -154,13 +155,17 @@ cc_library(
         ":benchmark_utils",
         ":profiling_listener",
         "//tensorflow/lite:framework",
+        "//tensorflow/lite:simple_memory_arena_debug_dump",
         "//tensorflow/lite:string_util",
+        "//tensorflow/lite/c:c_api_types",
         "//tensorflow/lite/c:common",
+        "//tensorflow/lite/core/kernels:builtin_ops",
         "//tensorflow/lite/kernels:builtin_ops",
         "//tensorflow/lite/kernels:cpu_backend_context",
         "//tensorflow/lite/profiling:profile_summary_formatter",
         "//tensorflow/lite/profiling:profiler",
         "//tensorflow/lite/tools:logging",
+        "//tensorflow/lite/tools:utils",
         "//tensorflow/lite/tools/delegates:delegate_provider_hdr",
         "//tensorflow/lite/tools/delegates:tflite_execution_providers",
         "@com_google_absl//absl/base:core_headers",
@@ -180,10 +185,12 @@ cc_library(
         ":benchmark_model_lib",
         ":benchmark_params",
         ":benchmark_utils",
+        "//tensorflow/lite/c:c_api_types",
         "//tensorflow/lite/tools:logging",
         "@com_google_absl//absl/memory",
         "//tensorflow/core/util:stats_calculator_portable",
         "//tensorflow/lite/c:common",
+        "//tensorflow/lite/delegates/hexagon:hexagon_delegate",
         "//tensorflow/lite/nnapi:nnapi_util",
         "//tensorflow/lite/profiling:time",
         "//tensorflow/lite/tools:command_line_flags",
@@ -216,6 +223,7 @@ cc_library(
         "//tensorflow/lite:framework",
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/profiling:memory_info",
+        "//tensorflow/lite/profiling:memory_usage_monitor",
         "//tensorflow/lite/profiling:time",
         "//tensorflow/lite/tools:command_line_flags",
         "//tensorflow/lite/tools:logging",
@@ -237,7 +245,6 @@ cc_test(
     srcs = [
         "benchmark_utils_test.cc",
     ],
-    copts = common_copts,
     deps = [
         ":benchmark_utils",
         "//tensorflow/lite/profiling:time",

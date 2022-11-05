@@ -1,7 +1,7 @@
 # Understand the C++ library
 
 The TensorFlow Lite for Microcontrollers C++ library is part of the
-[TensorFlow repository](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro).
+[TensorFlow repository](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro).
 It is designed to be readable, easy to modify, well-tested, easy to integrate,
 and compatible with regular TensorFlow Lite.
 
@@ -11,7 +11,7 @@ provides information about creating your own project.
 ## File structure
 
 The
-[`micro`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro)
+[`micro`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro)
 root directory has a relatively simple structure. However, since it is located
 inside of the extensive TensorFlow repository, we have created scripts and
 pre-generated project files that provide the relevant source files in isolation
@@ -22,33 +22,33 @@ within various embedded development environments.
 The most important files for using the TensorFlow Lite for Microcontrollers
 interpreter are located in the root of the project, accompanied by tests:
 
--   [`all_ops_resolver.h`](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/micro/all_ops_resolver.h)
+-   [`all_ops_resolver.h`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/all_ops_resolver.h)
     or
-    [`micro_mutable_op_resolver.h`](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/micro/micro_mutable_op_resolver.h)
+    [`micro_mutable_op_resolver.h`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/micro_mutable_op_resolver.h)
     can be used to provide the operations used by the interpreter to run the
     model. Since `all_ops_resolver.h` pulls in every available operation, it
     uses a lot of memory. In production applications, you should use
     `micro_mutable_op_resolver.h` to pull in only the operations your model
     needs.
--   [`micro_error_reporter.h`](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/micro/micro_error_reporter.h)
+-   [`micro_error_reporter.h`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/micro_error_reporter.h)
     outputs debug information.
--   [`micro_interpreter.h`](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/micro/micro_interpreter.h)
+-   [`micro_interpreter.h`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/micro_interpreter.h)
     contains code to handle and run models.
 
-See [Get started with microcontrollers](get_started.md) for a walkthrough of
-typical usage.
+See [Get started with microcontrollers](get_started_low_level.md) for a
+walkthrough of typical usage.
 
 The build system provides for platform-specific implementations of certain
 files. These are located in a directory with the platform name, for example
-[`sparkfun_edge`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/sparkfun_edge).
+[`sparkfun_edge`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/sparkfun_edge).
 
 Several other directories exist, including:
 
--   [`kernel`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/kernels),
+-   [`kernel`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/kernels),
     which contains operation implementations and the associated code.
--   [`tools`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/tools),
+-   [`tools`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/tools),
     which contains build tools and their output.
--   [`examples`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples),
+-   [`examples`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/examples),
     which contains sample code.
 
 ## Start a new project
@@ -60,7 +60,7 @@ instructions in this section.
 ### Use the Arduino library
 
 If you are using Arduino, the *Hello World* example is included in the
-`Arduino_TensorFlowLite` Arduino library, which you can download from the
+`Arduino_TensorFlowLite` Arduino library, which you can manually install in the
 Arduino IDE and in [Arduino Create](https://create.arduino.cc/).
 
 Once the library has been added, go to `File -> Examples`. You should see an
@@ -84,12 +84,12 @@ make -f tensorflow/lite/micro/tools/make/Makefile generate_projects
 
 This will take a few minutes, since it has to download some large toolchains for
 the dependencies. Once it has finished, you should see some folders created
-inside a path like `tensorflow/lite/micro/tools/make/gen/linux_x86_64/prj/` (the
+inside a path like `gen/linux_x86_64/prj/` (the
 exact path depends on your host operating system). These folders contain the
 generated project and source files.
 
 After running the command, you'll be able to find the *Hello World* projects in
-`tensorflow/lite/micro/tools/make/gen/linux_x86_64/prj/hello_world`. For
+`gen/linux_x86_64/prj/hello_world`. For
 example, `hello_world/keil` will contain the Keil project.
 
 ## Run the tests
@@ -169,9 +169,6 @@ encourage pull requests for new optimized implementations.
 
 ## Generate the Arduino library
 
-A nightly build of the Arduino library is available via the Arduino IDE's
-library manager.
-
 If you need to generate a new build of the library, you can run the following
 script from the TensorFlow repository:
 
@@ -180,10 +177,10 @@ script from the TensorFlow repository:
 ```
 
 The resulting library can be found in
-`tensorflow/lite/micro/tools/make/gen/arduino_x86_64/prj/tensorflow_lite.zip`.
+`gen/arduino_x86_64/prj/tensorflow_lite.zip`.
 
 ## Port to new devices
 
 Guidance on porting TensorFlow Lite for Microcontrollers to new platforms and
 devices can be found in
-[`micro/README.md`](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/README.md).
+[`micro/docs/new_platform_support.md`](https://github.com/tensorflow/tflite-micro/blob/main/tensorflow/lite/micro/docs/new_platform_support.md).

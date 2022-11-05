@@ -1,10 +1,10 @@
-load("//tensorflow:tensorflow.bzl", "pybind_extension")
+load("//tensorflow:tensorflow.default.bzl", "pybind_extension")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 py_binary(
@@ -15,7 +15,8 @@ py_binary(
     deps = [
         ":modify_model_interface_constants",
         ":modify_model_interface_lib",
-        "//tensorflow/python:platform",
+        "@absl_py//absl:app",
+        "@absl_py//absl/flags",
     ],
 )
 
@@ -36,9 +37,6 @@ py_test(
     srcs = ["modify_model_interface_lib_test.py"],
     python_version = "PY3",
     srcs_version = "PY3",
-    tags = [
-        "no_mac",  # TODO(b/148247402): flatbuffers import broken on Mac OS.
-    ],
     deps = [
         ":modify_model_interface_lib",
         "//tensorflow:tensorflow_py",
@@ -58,7 +56,6 @@ py_library(
 pybind_extension(
     name = "_pywrap_modify_model_interface",
     srcs = ["modify_model_interface.cc"],
-    module_name = "_pywrap_modify_model_interface",
     deps = [
         "//tensorflow/lite/schema:schema_fbs",
         "//tensorflow/lite/tools/optimize:modify_model_interface",

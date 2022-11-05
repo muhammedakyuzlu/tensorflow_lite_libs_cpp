@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_LITE_KERNELS_CPU_BACKEND_X86_H_
-#define TENSORFLOW_LITE_KERNELS_CPU_BACKEND_X86_H_
+#ifndef TENSORFLOW_LITE_KERNELS_CPU_BACKEND_GEMM_X86_H_
+#define TENSORFLOW_LITE_KERNELS_CPU_BACKEND_GEMM_X86_H_
 
 // If TFLITE_WITH_RUY is set, Ruy is the only GEMM option. In this header
 // we select either Ruy or an alternative based on the SIMD extentions
@@ -41,25 +41,27 @@ struct GemmImplX86 {
       const MatrixParams<DstScalar>& dst_params, DstScalar* dst_data,
       const GemmParams<AccumScalar, DstScalar, quantization_flavor>& params,
       CpuBackendContext* context) {
-    // Run-time dispatch to Ruy for platforms with AVX or above.
-    if (context->HasAvxOrAbove()) {
-      detail::GemmImplUsingRuy<LhsScalar, RhsScalar, AccumScalar, DstScalar,
-                               quantization_flavor>::Run(lhs_params, lhs_data,
-                                                         rhs_params, rhs_data,
-                                                         dst_params, dst_data,
-                                                         params, context);
-    } else {
-      // Dispatch to gemmlowp for SSE.
+    // TODO(b/168923364) Ruy is preferred on x86, but check if the deprecated
+    // path is enabled.
+    if (context->PreferGemmlowpOnX86()) {
+      // Dispatch to gemmlowp.
       detail::GemmImplUsingGemmlowp<
           LhsScalar, RhsScalar, AccumScalar, DstScalar,
           quantization_flavor>::Run(lhs_params, lhs_data, rhs_params, rhs_data,
                                     dst_params, dst_data, params, context);
+
+      return;
     }
+    // Run-time dispatch to Ruy for platforms with AVX or above.
+    detail::GemmImplUsingRuy<LhsScalar, RhsScalar, AccumScalar, DstScalar,
+                             quantization_flavor>::Run(lhs_params, lhs_data,
+                                                       rhs_params, rhs_data,
+                                                       dst_params, dst_data,
+                                                       params, context);
   }
 };
 
-// For float, again prefer Ruy in all cases, but defer to eigen if no flavor of
-// AVX is present.
+// For float, defer to eigen for now.
 template <>
 struct GemmImplX86<float, float, float, float,
                    QuantizationFlavor::kFloatingPoint> {
@@ -69,19 +71,8 @@ struct GemmImplX86<float, float, float, float,
                   const GemmParams<float, float,
                                    QuantizationFlavor::kFloatingPoint>& params,
                   CpuBackendContext* context) {
-    // Run-time dispatch to Ruy for platforms with AVX or above.
-    if (context->HasAvxOrAbove()) {
-      detail::GemmImplUsingRuy<
-          float, float, float, float,
-          QuantizationFlavor::kFloatingPoint>::Run(lhs_params, lhs_data,
-                                                   rhs_params, rhs_data,
-                                                   dst_params, dst_data, params,
-                                                   context);
-    } else {
-      // Dispatch to gemmlowp for SSE.
-      GemmImplUsingEigen::Run(lhs_params, lhs_data, rhs_params, rhs_data,
-                              dst_params, dst_data, params, context);
-    }
+    GemmImplUsingEigen::Run(lhs_params, lhs_data, rhs_params, rhs_data,
+                            dst_params, dst_data, params, context);
   }
 };
 
@@ -112,4 +103,4 @@ struct GemmImplX86<std::int8_t, std::int8_t, std::int32_t, std::int8_t,
 
 #endif  // not TFLITE_WITH_RUY
 
-#endif  // TENSORFLOW_LITE_KERNELS_CPU_BACKEND_X86_H_
+#endif  // TENSORFLOW_LITE_KERNELS_CPU_BACKEND_GEMM_X86_H_

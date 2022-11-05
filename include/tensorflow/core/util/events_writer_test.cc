@@ -35,7 +35,7 @@ namespace {
 // shorthand
 Env* env() { return Env::Default(); }
 
-void WriteSimpleValue(EventsWriter* writer, double wall_time, int64 step,
+void WriteSimpleValue(EventsWriter* writer, double wall_time, int64_t step,
                       const string& tag, float simple_value) {
   Event event;
   event.set_wall_time(wall_time);
@@ -80,6 +80,9 @@ void VerifyFile(const string& filename) {
   EXPECT_EQ(actual.file_version(),
             strings::StrCat(EventsWriter::kVersionPrefix,
                             EventsWriter::kCurrentVersion));
+  // Should have the current source metadata.
+  EXPECT_EQ(actual.source_metadata().writer(),
+            EventsWriter::kWriterSourceMetadata);
 
   Event expected;
   CHECK(ReadEventProto(reader, &offset, &actual));

@@ -14,10 +14,11 @@
 # ==============================================================================
 
 load("//tensorflow/lite:build_def.bzl", "tflite_copts", "tflite_linkopts")
+load("//tensorflow/lite/core/shims:cc_library_with_tflite.bzl", "cc_library_with_stable_tflite_abi", "cc_test_with_tflite")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 exports_files(glob([
@@ -34,32 +35,56 @@ cc_library(
     ],
 )
 
-cc_library(
+cc_library_with_stable_tflite_abi(
     name = "utils",
     srcs = ["utils.cc"],
     hdrs = ["utils.h"],
     copts = tflite_copts(),
-    deps = [
-        "//tensorflow/lite/c:common",
+    non_stable_abi_deps = [
         "//tensorflow/lite/delegates/nnapi:nnapi_delegate",
     ] + select({
+        "//tensorflow:ios": [
+            "//tensorflow/lite/delegates/coreml:coreml_delegate",
+        ],
+        "//tensorflow:macos_arm64": [
+            "//tensorflow/lite/delegates/coreml:coreml_delegate",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "//tensorflow/lite/delegates/gpu:supports_gpu_delegate": [
             "//tensorflow/lite/delegates/gpu:delegate",
         ],
         "//conditions:default": [],
     }) + select({
-        "//tensorflow:android_arm": [
-            "//tensorflow/lite/delegates/hexagon:hexagon_delegate",
-        ],
-        "//tensorflow:android_arm64": [
+        "//tensorflow:arm_any": [
             "//tensorflow/lite/delegates/hexagon:hexagon_delegate",
         ],
         "//conditions:default": [],
-    }) + select({
-        "//tensorflow:fuchsia": [],
-        "//tensorflow:windows": [],
+    }),
+    tflite_deps = [
+        "//tensorflow/lite/core/shims:c_api",
+        "//tensorflow/lite/core/shims:delegate_plugin",
+        "//tensorflow/lite/core/shims:common",
+        "//tensorflow/lite/tools/delegates:delegate_provider_hdr",
+        "//tensorflow/lite/tools/delegates:delegate_provider_lib",
+    ],
+    tflite_deps_selects = [{
+        # XNNPACK does not support s390x
+        # (see <https://github.com/tensorflow/tensorflow/pull/51655>).
+        "//tensorflow:linux_s390x": [],
+        "//tensorflow/lite:tflite_with_xnnpack_explicit_false": [],
         "//conditions:default": [
-            "//tensorflow/lite/delegates/xnnpack:xnnpack_delegate",
+            "//tensorflow/lite/core/shims:xnnpack_plugin",
+        ],
+    }],
+    deps = select({
+        # XNNPACK does not support s390x
+        # (see <https://github.com/tensorflow/tensorflow/pull/51655>).
+        "//tensorflow:linux_s390x": [],
+        "//tensorflow/lite:tflite_with_xnnpack_explicit_false": [],
+        "//conditions:default": [
+            "//tensorflow/lite/delegates/xnnpack:xnnpack_delegate_hdrs_only",
+            "//tensorflow/lite/experimental/acceleration/configuration:configuration_fbs",
         ],
     }),
 )
@@ -80,7 +105,7 @@ cc_library(
     ],
 )
 
-cc_test(
+cc_test_with_tflite(
     name = "utils_test",
     srcs = ["utils_test.cc"],
     data = [
@@ -89,8 +114,10 @@ cc_test(
     ],
     linkopts = tflite_linkopts(),
     linkstatic = 1,
-    deps = [
+    tflite_deps = [
         ":utils",
+    ],
+    deps = [
         "//tensorflow/lite:context",
         "@com_google_googletest//:gtest_main",
     ],

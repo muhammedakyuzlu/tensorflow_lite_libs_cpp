@@ -21,6 +21,7 @@ limitations under the License.
 #include <memory>
 #include <numeric>
 #include <ostream>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -45,7 +46,8 @@ class FloatAddOpModel : public SingleOpModel {
             const TensorData& input1, const TensorData& input2,
             const TensorData& output, ActivationFunctionType activation_type,
             bool allow_fp32_relax_to_fp16 = false) {
-    stateful_delegate_.reset(new StatefulNnApiDelegate(nnapi, options));
+    stateful_delegate_ =
+        std::make_unique<StatefulNnApiDelegate>(nnapi, options);
     SetDelegate(stateful_delegate_.get());
 
     input1_ = AddInput(input1);
@@ -114,7 +116,7 @@ struct NnApiDeviceSelectionTest
   FloatAddOpModel m;
 };
 
-TEST_F(NnApiDeviceSelectionTest, DoesntSetDevicesWithoutFlags) {
+TEST_F(NnApiDeviceSelectionTest, DoesntSetDevicesWhenCpuAllowed) {
   nnapi_mock_->StubCompilationCreateForDevicesWith(
       [](ANeuralNetworksModel* model,
          const ANeuralNetworksDevice* const* devices, uint32_t numDevices,
@@ -124,8 +126,9 @@ TEST_F(NnApiDeviceSelectionTest, DoesntSetDevicesWithoutFlags) {
       });
 
   tflite::StatefulNnApiDelegate::Options options;
+  options.disallow_nnapi_cpu = false;
   InitWithOptions(options);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
   EXPECT_EQ(m.GetCompilationStatus(), kTfLiteOk);
 }
 
@@ -149,7 +152,7 @@ TEST_F(NnApiDeviceSelectionTest, SetsDeviceBasedOnOptions) {
   tflite::StatefulNnApiDelegate::Options options;
   options.accelerator_name = "dsp";
   InitWithOptions(options);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
   EXPECT_EQ(m.GetCompilationStatus(), kTfLiteOk);
 }
 
@@ -175,7 +178,7 @@ TEST_F(NnApiDeviceSelectionTest, DisallowsCPUBasedOnOptions) {
   tflite::StatefulNnApiDelegate::Options options;
   options.disallow_nnapi_cpu = true;
   InitWithOptions(options);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
   EXPECT_EQ(m.GetCompilationStatus(), kTfLiteOk);
 }
 
@@ -188,7 +191,7 @@ TEST_F(NnApiDeviceSelectionTest,
   tflite::StatefulNnApiDelegate::Options options;
   options.disallow_nnapi_cpu = false;
   InitWithOptions(options);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
   EXPECT_EQ(m.GetCompilationStatus(), kTfLiteOk);
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 1);
 }
@@ -202,7 +205,7 @@ TEST_F(NnApiDeviceSelectionTest,
   tflite::StatefulNnApiDelegate::Options options;
   options.disallow_nnapi_cpu = true;
   InitWithOptions(options);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
   EXPECT_EQ(m.GetCompilationStatus(), kTfLiteOk);
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 1);
 }
@@ -221,7 +224,8 @@ class AcceleratedModel {
     StatefulNnApiDelegate::Options options;
     options.accelerator_name = accelerator_name.c_str();
     options.max_number_delegated_partitions = max_nnapi_partitions;
-    stateful_delegate_.reset(new StatefulNnApiDelegate(nnapi, options));
+    stateful_delegate_ =
+        std::make_unique<StatefulNnApiDelegate>(nnapi, options);
   }
 
   // build a delegate with no target accelerator name, can disable the NNAPI CPU
@@ -231,7 +235,8 @@ class AcceleratedModel {
     StatefulNnApiDelegate::Options options;
     options.disallow_nnapi_cpu = disallow_nnapi_cpu;
     options.max_number_delegated_partitions = max_nnapi_partitions;
-    stateful_delegate_.reset(new StatefulNnApiDelegate(nnapi, options));
+    stateful_delegate_ =
+        std::make_unique<StatefulNnApiDelegate>(nnapi, options);
   }
 
  private:
@@ -270,10 +275,7 @@ class ArgMaxOpModel : public SingleOpModel, public AcceleratedModel {
 
     SetBuiltinOp(BuiltinOperator_ARG_MAX, BuiltinOptions_ArgMaxOptions,
                  CreateArgMaxOptions(builder_, output_type).Union());
-    BuildInterpreter({input_shape, {1}}, /*num_threads*/ -1,
-                     /*allow_fp32_relax_to_fp16=*/false,
-                     /*apply_delegate=*/false);
-    ApplyDelegate();
+    BuildInterpreter({input_shape, {1}});
   }
 };
 
@@ -295,7 +297,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
   ArgMaxOpModel m({1, 1, 1, 4}, TensorType_FLOAT32, /*axis_value=*/3,
                   TensorType_INT32, nnapi_mock_->GetNnApi(), "test-device");
   m.PopulateTensor<float>(m.input(), {0.1, 0.9, 0.7, 0.3});
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 1)
       << "Expected Max not to be delegates since it not supported before NNAPI "
@@ -306,7 +308,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
   ArgMaxOpModel m1({1, 1, 1, 4}, TensorType_FLOAT32, /*axis_value=*/3,
                    TensorType_INT32, nnapi_mock_->GetNnApi(), "test-device");
   m1.PopulateTensor<float>(m.input(), {0.1, 0.9, 0.7, 0.3});
-  m1.Invoke();
+  ASSERT_EQ(m1.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m1.CountOpsExecutedByCpuKernel(), 0)
       << "Expected Max op to be delegated since it is supported in NNAPI 1.2.";
@@ -331,7 +333,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
                   TensorType_INT32, nnapi_mock_->GetNnApi(),
                   /*disallow_nnapi_cpu=*/true);
   m.PopulateTensor<float>(m.input(), {0.1, 0.9, 0.7, 0.3});
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 1)
       << "Expected Max not to be delegates since it not supported before NNAPI "
@@ -341,7 +343,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
                    TensorType_INT32, nnapi_mock_->GetNnApi(),
                    /*disallow_nnapi_cpu=*/false);
   m1.PopulateTensor<float>(m.input(), {0.1, 0.9, 0.7, 0.3});
-  m1.Invoke();
+  ASSERT_EQ(m1.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m1.CountOpsExecutedByCpuKernel(), 0)
       << "Expected Max op to be delegated since we enabled NNAPI CPU "
@@ -353,7 +355,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
                    TensorType_INT32, nnapi_mock_->GetNnApi(),
                    /*disallow_nnapi_cpu=*/true);
   m2.PopulateTensor<float>(m.input(), {0.1, 0.9, 0.7, 0.3});
-  m2.Invoke();
+  ASSERT_EQ(m2.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m2.CountOpsExecutedByCpuKernel(), 0)
       << "Expected Max op to be delegated since it is supported in NNAPI 1.2.";
@@ -413,8 +415,7 @@ class AddSubOpsAcceleratedModel : public MultiOpModel, public AcceleratedModel {
                  {add_output, input3_}, {output_});
     BuildInterpreter({GetShape(input1_), GetShape(input2_), GetShape(input3_)},
                      /*num_threads=*/-1, allow_fp32_relax_to_fp16,
-                     /*apply_delegate=*/false);
-    ApplyDelegate();
+                     /*apply_delegate=*/true);
   }
 };
 
@@ -459,7 +460,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
   m.PopulateTensor<float>(m.input3(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 1);
   ASSERT_EQ(should_build_model_with_sup_ops_compilation_model_create_count, 2)
@@ -489,7 +490,7 @@ TEST_F(UnsupportedOperationOnDeviceTest, ShouldRunOnCpuIfDeviceSupportsNoOps) {
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
   m.PopulateTensor<float>(m.input3(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   EXPECT_EQ(m.CountOpsExecutedByCpuKernel(), 2);
 }
@@ -522,7 +523,7 @@ TEST_F(UnsupportedOperationOnDeviceTest, ShouldCacheModelCompilation) {
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
   m.PopulateTensor<float>(m.input3(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   ASSERT_EQ(m.CountOpsExecutedByCpuKernel(), 0);
   EXPECT_EQ(should_cache_model_compilation_model_create_count, 1);
@@ -542,7 +543,7 @@ TEST_F(UnsupportedOperationOnDeviceTest,
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
   m.PopulateTensor<float>(m.input3(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   // Delegation succeded without failures and all nodes have been delegated.
   ASSERT_EQ(m.CountOpsExecutedByCpuKernel(), 0);
@@ -595,8 +596,7 @@ class HardSwishAddOpsAcceleratedModel : public MultiOpModel,
                  CreateAddOptions(builder_, activation_type).Union(),
                  {input1_, hard_swish_output}, {output_});
     BuildInterpreter({GetShape(input1_), GetShape(input2_)}, /*num_threads=*/-1,
-                     allow_fp32_relax_to_fp16, /*apply_delegate=*/false);
-    ApplyDelegate();
+                     allow_fp32_relax_to_fp16, /*apply_delegate=*/true);
   }
 };
 
@@ -626,7 +626,7 @@ TEST_F(TfLiteOpMappedToMultipleNnApiOps, AllCostituentOpsNotSupported) {
   std::vector<float> input2{0.1, 0.2, 0.3, 0.5};
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   // Delegation succeded without failures and HardSwish has not been delegated
   // but Add has been correctly delegated.
@@ -656,7 +656,7 @@ TEST_F(TfLiteOpMappedToMultipleNnApiOps, NotAllConstitutentOpsSupported) {
   std::vector<float> input2{0.1, 0.2, 0.3, 0.5};
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   // Delegation succeded without failures. HardSwish has not been delegated
   // but Add is delegated.
@@ -685,7 +685,7 @@ TEST_F(TfLiteOpMappedToMultipleNnApiOps, AllConstitutentOpsSupported) {
   std::vector<float> input2{0.1, 0.2, 0.3, 0.5};
   m.PopulateTensor<float>(m.input1(), input1);
   m.PopulateTensor<float>(m.input2(), input2);
-  m.Invoke();
+  ASSERT_EQ(m.Invoke(), kTfLiteOk);
 
   // Delegation succeded without failures and all nodes have been delegated.
   ASSERT_EQ(m.CountOpsExecutedByCpuKernel(), 0);
@@ -726,8 +726,7 @@ class QuantizedWeightsConvolutionOpModel : public SingleOpModel,
 
     BuildInterpreter({GetShape(input_), GetShape(filter_), GetShape(bias_)},
                      num_threads, /*allow_fp32_relax_to_fp16=*/false,
-                     /*apply_delegate=*/false);
-    ApplyDelegate();
+                     /*apply_delegate=*/true);
   }
 
   void SetInput(std::initializer_list<float> data) {
@@ -873,11 +872,7 @@ class LongIdentityModel : public MultiOpModel, public AcceleratedModel {
         {intermediate_outputs[intermediate_outputs.size() - 1], zero_input_},
         {output_});
 
-    BuildInterpreter({GetShape(input_), GetShape(zero_input_)},
-                     /*num_threads*/ -1,
-                     /*allow_fp32_relax_to_fp16=*/false,
-                     /*apply_delegate=*/false);
-    ApplyDelegate();
+    BuildInterpreter({GetShape(input_), GetShape(zero_input_)});
 
     std::vector<float> zero(GetTensorSize(input_), 0.0);
     PopulateTensor(zero_input_, zero);
@@ -1090,9 +1085,3 @@ TEST_F(DelegatePartitionLimitTest,
 
 }  // namespace
 }  // namespace tflite
-
-int main(int argc, char** argv) {
-  ::tflite::LogToStderr();
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
